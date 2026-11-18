@@ -106,17 +106,32 @@
               </div>
             </section>
 
-            <!-- Step 5: distance -->
+            <!-- Step 5: distance from shop origin -->
             <section class="step" data-step="5" aria-labelledby="step5Title">
               <p class="step-kicker">ขั้นตอนที่ 5</p>
-              <h3 class="step-title" id="step5Title">หน้างานอยู่ห่างแค่ไหน</h3>
-              <p class="step-help">ใส่ระยะทางขาเดียวจากบ้านช่างถึงหน้างาน ระบบจะคิดไป-กลับรายวันให้อัตโนมัติ</p>
-              <label class="field-label" for="distanceInput">ระยะทางขาเดียว (กิโลเมตร)</label>
-              <div class="area-row">
-                <input id="distanceInput" name="distanceKm" type="number" inputmode="decimal" min="0" max="500" step="1" placeholder="เช่น 10" required aria-describedby="distanceError" />
-                <span class="unit">กม.</span>
-              </div>
-              <div class="chips" id="distanceChips"></div>
+              <h3 class="step-title" id="step5Title">หน้างานอยู่แถวไหน</h3>
+              <p class="step-help" id="step5Help">ร้านอยู่ที่ปากซอยลาดพร้าว 71 เลือกเขตหรืออำเภอ หรือใช้ตำแหน่งของฉัน ระบบจะประมาณระยะทางให้ ไม่ต้องรู้กิโลเมตรเอง</p>
+
+              <button type="button" class="btn btn-secondary geo-btn" id="geoBtn">ใช้ตำแหน่งของฉัน</button>
+              <p class="geo-status" id="geoStatus" aria-live="polite"></p>
+
+              <label class="field-label" for="areaSearch">ค้นหาเขตในกรุงเทพฯ หรืออำเภอปริมณฑล</label>
+              <input id="areaSearch" type="search" inputmode="search" autocomplete="off" placeholder="เช่น บางกะปิ, บางนา, บางบัวทอง" aria-describedby="distanceError" />
+              <div class="area-list" id="areaList" role="listbox" aria-label="เขตและอำเภอ"></div>
+
+              <p class="distance-preview" id="distancePreview" aria-live="polite"></p>
+              <p class="service-note" id="stepServiceNote" hidden>ไกลกว่ารัศมีให้บริการโดยประมาณ (60 กม.) แนะนำให้โทรสอบถามก่อน</p>
+
+              <details class="manual-km" id="manualDistance">
+                <summary>หรือใส่ระยะทางเอง (กม.)</summary>
+                <label class="field-label" for="distanceInput">ระยะทางขาเดียวโดยประมาณ</label>
+                <div class="area-row">
+                  <input id="distanceInput" name="distanceKm" type="number" inputmode="decimal" min="0" max="500" step="0.1" placeholder="เช่น 12" aria-describedby="distanceError" />
+                  <span class="unit">กม.</span>
+                </div>
+              </details>
+
+              <p class="privacy-note" id="privacyNote">ตำแหน่งของท่านใช้คำนวณระยะทางบนเครื่องนี้เท่านั้น ไม่ถูกส่งไปที่อื่น นอกจากตอนกดเปิดแผนที่เพื่อดูเส้นทาง</p>
               <p class="error" id="distanceError" aria-live="polite"></p>
             </section>
           </form>
@@ -134,6 +149,9 @@
             <p class="price-range" id="priceRange" aria-live="polite">—</p>
             <p class="price-note">ราคาตัวอย่าง ยังไม่ใช่ใบเสนอราคาจริง</p>
             <p class="days-line" id="daysLine"></p>
+            <p class="distance-line" id="distanceLine"></p>
+            <p class="service-note" id="resultServiceNote" hidden>ไกลกว่ารัศมีให้บริการโดยประมาณ แนะนำให้โทรสอบถามก่อน</p>
+            <a class="maps-link" id="mapsLink" hidden target="_blank" rel="noopener noreferrer">ดูเส้นทางใน Google Maps</a>
             <div class="facts">
               <div class="fact">
                 <span>กระเบื้องที่ต้องใช้</span>

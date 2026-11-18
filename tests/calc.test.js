@@ -153,6 +153,48 @@ const full = calc.buildSummaryText(a, config);
 assert(/5,000 – 6,100 บาท/.test(full), "full summary uses formatBahtRange");
 assert(full.length > share.length, "full summary is longer than the LINE share text");
 
+console.log("\n=== Geo / shop origin ===");
+const origin = config.shopOrigin;
+assert(origin && Math.abs(origin.lat - 13.78706) < 0.0001, "origin lat is ปากซอยลาดพร้าว 71 (OSM)");
+assert(Math.abs(origin.lon - 100.60776) < 0.0001, "origin lon is ปากซอยลาดพร้าว 71 (OSM)");
+assert(origin.label.indexOf("ลาดพร้าว 71") !== -1, "origin label names Lat Phrao 71");
+assert(Math.abs(config.roadFactor - 1.3) < 0.0001, "default road factor is 1.3");
+assert(config.maxServiceRadiusKm === 60, "default service radius is 60 km");
+almost(calc.haversineKm(origin, origin), 0, 0.0001, "haversine to self is 0");
+assert((config.serviceAreas || []).length === 79, "50 Bangkok districts + 29 greater-Bangkok amphoes");
+assert(config.serviceAreas.filter(function (a) { return a.province === "กรุงเทพมหานคร"; }).length === 50, "exactly 50 Bangkok districts");
+
+function areaByName(name, province) {
+  return config.serviceAreas.find(function (a) {
+    return a.name === name && (!province || a.province === province);
+  });
+}
+function roadOf(name, province) {
+  const a = areaByName(name, province);
+  assert(!!a, "has area " + name);
+  return calc.roadKmFromOrigin({ lat: a.lat, lon: a.lon }, config);
+}
+almost(roadOf("บางกะปิ"), 5.2, 0.15, "บางกะปิ approx road km");
+almost(roadOf("บางนา"), 17.1, 0.15, "บางนา approx road km");
+almost(roadOf("บางบัวทอง", "นนทบุรี"), 36.4, 0.15, "บางบัวทอง approx road km");
+almost(roadOf("วังทองหลาง"), 1.2, 0.15, "วังทองหลาง (shop district) is very close");
+assert(calc.isBeyondServiceRadius(60.1, config) === true, "61 km is beyond radius");
+assert(calc.isBeyondServiceRadius(60, config) === false, "60 km is within radius");
+const far = calc.calculateEstimate({
+  areaSqm: 10, tileSize: "60x60", location: "hall_floor", site: "house_ground",
+  distanceKm: 70, distanceSource: "area", distanceLabel: "อำเภอเมืองนครปฐม นครปฐม",
+  destLat: 13.82, destLon: 100.02,
+}, config);
+assert(far.beyondServiceRadius === true, "result flags beyond service radius");
+assert(far.reasons.some(function (r) { return r.id === "service-radius"; }), "beyond-radius reason present");
+assert(/ห่างจากร้าน \(ปากซอยลาดพร้าว 71\) ประมาณ/.test(calc.distanceFromShopText(5.2, config)), "distance sentence uses shop label");
+const maps = calc.buildMapsDirectionsUrl(origin, { lat: 13.769474, lon: 100.639675 });
+assert(maps.indexOf("https://www.google.com/maps/dir/?api=1&origin=") === 0, "maps url is directions API");
+assert(maps.indexOf(encodeURIComponent(origin.lat + "," + origin.lon)) !== -1, "maps url encodes origin");
+assert(maps.indexOf("destination=") !== -1, "maps url has destination");
+assert(!/api[_-]?key|key=/i.test(maps), "maps url has no API key");
+assert(calc.buildMapsDirectionsUrl(origin, null) === "", "maps url empty without destination");
+
 console.log("\n=== Done:", failed === 0 ? "ALL PASSED" : failed + " failed", "===");
 process.exit(failed === 0 ? 0 : 1);
 

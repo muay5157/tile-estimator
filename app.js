@@ -10,6 +10,11 @@
     location: "",
     site: "",
     distanceKm: "",
+    distanceSource: "",
+    areaId: "",
+    areaLabel: "",
+    destLat: null,
+    destLon: null,
     demolish: false,
     leveling: false,
     customerSuppliesTiles: true,
@@ -37,7 +42,6 @@
   ];
 
   const AREA_CHIPS = [3, 10, 25, 50, 100];
-  const DIST_CHIPS = [5, 10, 20, 50, 80];
 
   const els = {
     page: document.getElementById("page"),
@@ -65,8 +69,17 @@
     levelingHint: document.getElementById("levelingHint"),
     supplyChoices: document.getElementById("supplyChoices"),
     distanceInput: document.getElementById("distanceInput"),
-    distanceChips: document.getElementById("distanceChips"),
     distanceError: document.getElementById("distanceError"),
+    geoBtn: document.getElementById("geoBtn"),
+    geoStatus: document.getElementById("geoStatus"),
+    areaSearch: document.getElementById("areaSearch"),
+    areaList: document.getElementById("areaList"),
+    distancePreview: document.getElementById("distancePreview"),
+    stepServiceNote: document.getElementById("stepServiceNote"),
+    resultServiceNote: document.getElementById("resultServiceNote"),
+    distanceLine: document.getElementById("distanceLine"),
+    mapsLink: document.getElementById("mapsLink"),
+    manualDistance: document.getElementById("manualDistance"),
     backBtn: document.getElementById("backBtn"),
     nextBtn: document.getElementById("nextBtn"),
     navBar: document.getElementById("navBar"),
@@ -82,6 +95,196 @@
     phoneLabel: document.getElementById("phoneLabel"),
     toast: document.getElementById("toast"),
   };
+
+  function areaPrefix(area) {
+    return area.province === "กรุงเทพมหานคร" ? "เขต" : "อำเภอ";
+  }
+
+  function areaDisplayName(area) {
+    return areaPrefix(area) + area.name;
+  }
+
+  function areaFullLabel(area) {
+    if (area.province === "กรุงเทพมหานคร") return areaDisplayName(area);
+    return areaDisplayName(area) + " " + area.province;
+  }
+
+  function areaKm(area) {
+    return calc.roadKmFromOrigin({ lat: area.lat, lon: area.lon }, cfg);
+  }
+
+  function normalizeSearch(s) {
+    return String(s || "")
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/เขต|อำเภอ|อ\.|จ\.|จังหวัด/g, "");
+  }
+
+  function matchesArea(area, query) {
+    if (!query) return true;
+    const q = normalizeSearch(query);
+    const hay = normalizeSearch(
+      area.name + area.province + areaPrefix(area) + (area.nameEn || "")
+    );
+    return hay.indexOf(q) !== -1;
+  }
+
+  const PROVINCE_ORDER = ["กรุงเทพมหานคร", "นนทบุรี", "ปทุมธานี", "สมุทรปราการ", "สมุทรสาคร", "นครปฐม"];
+
+  function sortedAreas() {
+    const list = (cfg.serviceAreas || []).slice();
+    list.sort(function (a, b) {
+      const pa = PROVINCE_ORDER.indexOf(a.province);
+      const pb = PROVINCE_ORDER.indexOf(b.province);
+      if (pa !== pb) return (pa === -1 ? 99 : pa) - (pb === -1 ? 99 : pb);
+      return a.name.localeCompare(b.name, "th");
+    });
+    return list;
+  }
+
+  function updateDistancePreview() {
+    const km = Number(state.distanceKm);
+    const has = state.distanceKm !== "" && !Number.isNaN(km) && km >= 0;
+    if (!els.distancePreview) return;
+    if (!has) {
+      els.distancePreview.textContent = "";
+    } else {
+      const extra = state.areaLabel ? " · " + state.areaLabel : state.distanceSource === "geo" ? " · จากตำแหน่งของฉัน" : "";
+      const approx = state.distanceSource === "geo" || state.distanceSource === "area" ? " (ระยะประมาณ)" : "";
+      els.distancePreview.textContent = calc.distanceFromShopText(km, cfg) + extra + approx;
+    }
+    const beyond = has && calc.isBeyondServiceRadius(km, cfg);
+    if (els.stepServiceNote) {
+      els.stepServiceNote.hidden = !beyond;
+      if (beyond) {
+        els.stepServiceNote.textContent =
+          "ไกลกว่ารัศมีให้บริการโดยประมาณ (" +
+          calc.formatNumber(cfg.maxServiceRadiusKm) +
+          " กม.) แนะนำให้โทรสอบถามก่อน";
+      }
+    }
+  }
+
+  function setDistance(opts) {
+    state.distanceKm = opts.km;
+    state.distanceSource = opts.source || "";
+    state.areaId = opts.areaId || "";
+    state.areaLabel = opts.label || "";
+    state.destLat = opts.lat != null ? opts.lat : null;
+    state.destLon = opts.lon != null ? opts.lon : null;
+    if (opts.source !== "manual" && els.distanceInput) {
+      els.distanceInput.value = opts.km === "" || opts.km == null ? "" : String(opts.km);
+    }
+    if (opts.source === "manual") {
+      state.areaId = "";
+      state.areaLabel = "";
+      state.destLat = null;
+      state.destLon = null;
+    }
+    renderAreaList(els.areaSearch ? els.areaSearch.value : "");
+    updateDistancePreview();
+    clearError("distanceKm");
+  }
+
+  function renderAreaList(query) {
+    if (!els.areaList) return;
+    const selected = state.areaId;
+    const matches = sortedAreas().filter(function (a) { return matchesArea(a, query); });
+    els.areaList.innerHTML = "";
+    if (!matches.length) {
+      const empty = document.createElement("p");
+      empty.className = "area-empty";
+      empty.textContent = "ไม่พบเขตหรืออำเภอที่ตรงกับคำค้น ลองใส่ระยะทางเองด้านล่างได้";
+      els.areaList.appendChild(empty);
+      return;
+    }
+    let currentProv = "";
+    matches.forEach(function (area) {
+      if (area.province !== currentProv) {
+        currentProv = area.province;
+        const head = document.createElement("div");
+        head.className = "area-group";
+        head.textContent = currentProv === "กรุงเทพมหานคร" ? "กรุงเทพมหานคร" : "ปริมณฑล · " + currentProv;
+        els.areaList.appendChild(head);
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "area-option" + (area.id === selected ? " is-selected" : "");
+      btn.setAttribute("role", "option");
+      btn.setAttribute("aria-selected", area.id === selected ? "true" : "false");
+      btn.dataset.id = area.id;
+      const name = document.createElement("span");
+      name.textContent = areaDisplayName(area);
+      const km = document.createElement("span");
+      km.className = "area-km";
+      km.textContent = "ประมาณ " + calc.formatDistanceKm(areaKm(area));
+      btn.appendChild(name);
+      btn.appendChild(km);
+      btn.addEventListener("click", function () {
+        const road = areaKm(area);
+        setDistance({
+          km: road,
+          source: "area",
+          areaId: area.id,
+          label: areaFullLabel(area),
+          lat: area.lat,
+          lon: area.lon,
+        });
+        if (els.geoStatus) els.geoStatus.textContent = "";
+      });
+      els.areaList.appendChild(btn);
+    });
+  }
+
+  function geoErrorMessage(err) {
+    const code = err && err.code;
+    if (!navigator.geolocation) return "เบราว์เซอร์นี้ใช้ตำแหน่งอัตโนมัติไม่ได้ ให้เลือกเขตหรือใส่ระยะทางเอง";
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      return "การใช้ตำแหน่งต้องเปิดเว็บผ่าน https ให้เลือกเขตหรือใส่ระยะทางเองได้";
+    }
+    if (code === 1) return "ยังไม่ได้อนุญาตให้ใช้ตำแหน่ง ให้เลือกเขตหรือใส่ระยะทางเองได้";
+    if (code === 2) return "หาตำแหน่งไม่สำเร็จ ลองใหม่อีกครั้ง หรือเลือกเขตด้านล่าง";
+    if (code === 3) return "ใช้เวลานานเกินไป ลองใหม่หรือเลือกเขตแทนได้";
+    return "ใช้ตำแหน่งไม่สำเร็จ ให้เลือกเขตหรือใส่ระยะทางเองได้";
+  }
+
+  function requestMyLocation() {
+    if (!els.geoBtn) return;
+    if (!navigator.geolocation) {
+      els.geoStatus.textContent = geoErrorMessage({ code: 0 });
+      return;
+    }
+    els.geoBtn.classList.add("is-busy");
+    els.geoBtn.disabled = true;
+    els.geoStatus.textContent = "กำลังหาตำแหน่งของท่าน…";
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        els.geoBtn.classList.remove("is-busy");
+        els.geoBtn.disabled = false;
+        const dest = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        const km = calc.roadKmFromOrigin(dest, cfg);
+        if (!isFinite(km)) {
+          els.geoStatus.textContent = "คำนวณระยะทางจากตำแหน่งนี้ไม่ได้ ให้เลือกเขตแทนได้";
+          return;
+        }
+        setDistance({
+          km: km,
+          source: "geo",
+          label: "ตำแหน่งของฉัน",
+          lat: dest.lat,
+          lon: dest.lon,
+        });
+        if (els.areaSearch) els.areaSearch.value = "";
+        els.geoStatus.textContent = "ใช้ตำแหน่งของฉันแล้ว · " + calc.formatDistanceKm(km) + " (ระยะประมาณ)";
+      },
+      function (err) {
+        els.geoBtn.classList.remove("is-busy");
+        els.geoBtn.disabled = false;
+        els.geoStatus.textContent = geoErrorMessage(err);
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  }
 
   function prefersReducedMotion() {
     return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -269,12 +472,20 @@
       return true;
     }
     if (state.step === 5) {
-      const n = Number(els.distanceInput.value);
-      state.distanceKm = n;
-      if (els.distanceInput.value === "" || Number.isNaN(n) || n < 0 || n > 500) {
-        showError("distanceKm", "กรุณาใส่ระยะทางขาเดียว 0 ถึง 500 กม.");
+      const n = Number(state.distanceKm === "" ? els.distanceInput.value : state.distanceKm);
+      if (els.distanceInput.value !== "" && state.distanceSource === "manual") {
+        // keep manual value
+      }
+      if (state.distanceKm === "" && els.distanceInput.value !== "") {
+        state.distanceKm = Number(els.distanceInput.value);
+        state.distanceSource = "manual";
+      }
+      const km = Number(state.distanceKm);
+      if (state.distanceKm === "" || Number.isNaN(km) || km < 0 || km > 500) {
+        showError("distanceKm", "เลือกเขต อำเภอ ใช้ตำแหน่งของฉัน หรือใส่ระยะทาง 0 ถึง 500 กม.");
         return false;
       }
+      state.distanceKm = km;
       clearError("distanceKm");
       return true;
     }
@@ -291,6 +502,19 @@
 
     els.priceRange.textContent = calc.formatBahtRange(result.rangeLow, result.rangeHigh);
     els.daysLine.textContent = "ใช้เวลาประมาณ " + result.days + " วันทำงาน";
+    if (els.distanceLine) {
+      const extra = result.distanceLabel ? " · " + result.distanceLabel : "";
+      const approx = result.distanceApproximate ? " (ระยะประมาณ)" : "";
+      els.distanceLine.textContent = calc.distanceFromShopText(result.distanceKm, cfg) + extra + approx;
+    }
+    if (els.resultServiceNote) {
+      els.resultServiceNote.hidden = !result.beyondServiceRadius;
+    }
+    if (els.mapsLink) {
+      const hasDest = result.destLat != null && result.destLon != null && isFinite(result.destLat);
+      els.mapsLink.hidden = !hasDest;
+      els.mapsLink.removeAttribute("href");
+    }
     els.boxLine.textContent = result.boxes + " กล่อง";
 
     const heading = els.breakdown.querySelector("h3");
@@ -321,6 +545,11 @@
     state.location = "";
     state.site = "";
     state.distanceKm = "";
+    state.distanceSource = "";
+    state.areaId = "";
+    state.areaLabel = "";
+    state.destLat = null;
+    state.destLon = null;
     state.demolish = false;
     state.leveling = false;
     state.customerSuppliesTiles = true;
@@ -343,7 +572,11 @@
     });
     if (els.summaryBox) els.summaryBox.value = "";
     syncChips(els.areaChips, els.areaInput);
-    syncChips(els.distanceChips, els.distanceInput);
+    if (els.areaSearch) els.areaSearch.value = "";
+    if (els.geoStatus) els.geoStatus.textContent = "";
+    if (els.manualDistance) els.manualDistance.open = false;
+    renderAreaList("");
+    updateDistancePreview();
     updateLevelingAvailability();
     els.wizard.classList.remove("hidden");
     els.navBar.classList.remove("hidden");
@@ -372,10 +605,6 @@
       state.areaSqm = v;
       els.areaError.textContent = "";
     });
-    renderChips(els.distanceChips, DIST_CHIPS, "กม.", els.distanceInput, function (v) {
-      state.distanceKm = v;
-      els.distanceError.textContent = "";
-    });
     renderChoices(els.tileChoices, TILES, state.tileSize, "tileSize");
     renderChoices(els.locationChoices, LOCATIONS, state.location, "location");
     renderChoices(els.siteChoices, SITES, state.site, "site");
@@ -385,10 +614,35 @@
       if (els.areaInput.value) clearError("areaSqm");
       syncChips(els.areaChips, els.areaInput);
     });
+    renderAreaList("");
+    if (els.areaSearch) {
+      els.areaSearch.addEventListener("input", function () {
+        renderAreaList(els.areaSearch.value);
+      });
+    }
+    if (els.geoBtn) els.geoBtn.addEventListener("click", requestMyLocation);
+    if (els.mapsLink) {
+      els.mapsLink.addEventListener("click", function (ev) {
+        ev.preventDefault();
+        const origin = calc.shopOrigin(cfg);
+        const dest = state.lastResult && state.lastResult.destLat != null
+          ? { lat: state.lastResult.destLat, lon: state.lastResult.destLon }
+          : null;
+        const url = calc.buildMapsDirectionsUrl(origin, dest);
+        if (!url) return;
+        window.open(url, "_blank", "noopener,noreferrer");
+      });
+    }
     els.distanceInput.addEventListener("input", function () {
-      state.distanceKm = Number(els.distanceInput.value);
-      if (els.distanceInput.value !== "") clearError("distanceKm");
-      syncChips(els.distanceChips, els.distanceInput);
+      const raw = els.distanceInput.value;
+      if (raw === "") {
+        if (state.distanceSource === "manual") setDistance({ km: "", source: "" });
+        return;
+      }
+      const n = Number(raw);
+      if (Number.isNaN(n)) return;
+      setDistance({ km: n, source: "manual" });
+      if (els.geoStatus) els.geoStatus.textContent = "";
     });
     els.demolishInput.addEventListener("change", function () {
       state.demolish = els.demolishInput.checked;
@@ -442,7 +696,11 @@
             tileSize: state.tileSize,
             location: state.location,
             site: state.site,
-            distanceKm: Number(els.distanceInput.value),
+            distanceKm: Number(state.distanceKm),
+            distanceSource: state.distanceSource,
+            distanceLabel: state.areaLabel,
+            destLat: state.destLat,
+            destLon: state.destLon,
             demolish: state.demolish,
             leveling: state.leveling,
             customerSuppliesTiles: state.customerSuppliesTiles,

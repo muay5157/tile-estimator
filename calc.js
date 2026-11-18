@@ -29,6 +29,74 @@
     return area ? 1 / area : 0;
   }
 
+  function toRad(deg) {
+    return (deg * Math.PI) / 180;
+  }
+
+  /** Great-circle distance in kilometres (WGS84 mean radius). */
+  function haversineKm(a, b) {
+    if (!a || !b || !isFinite(a.lat) || !isFinite(a.lon) || !isFinite(b.lat) || !isFinite(b.lon)) {
+      return NaN;
+    }
+    const R = 6371.0088;
+    const dLat = toRad(b.lat - a.lat);
+    const dLon = toRad(b.lon - a.lon);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  function estimatedRoadKm(from, to, factor) {
+    const f = factor == null ? 1.3 : Number(factor);
+    const straight = haversineKm(from, to);
+    if (!isFinite(straight)) return NaN;
+    return Math.round(straight * f * 10) / 10;
+  }
+
+  function shopOrigin(config) {
+    const cfg = config || root.TILE_ESTIMATOR_CONFIG;
+    return cfg && cfg.shopOrigin ? cfg.shopOrigin : null;
+  }
+
+  function shopOriginLabel(config) {
+    const o = shopOrigin(config);
+    return (o && o.label) || "ปากซอยลาดพร้าว 71";
+  }
+
+  function roadKmFromOrigin(dest, config) {
+    const cfg = config || root.TILE_ESTIMATOR_CONFIG;
+    return estimatedRoadKm(shopOrigin(cfg), dest, cfg && cfg.roadFactor);
+  }
+
+  function isBeyondServiceRadius(distanceKm, config) {
+    const cfg = config || root.TILE_ESTIMATOR_CONFIG;
+    const max = cfg && cfg.maxServiceRadiusKm;
+    return isFinite(max) && Number(distanceKm) > max;
+  }
+
+  function buildMapsDirectionsUrl(origin, dest) {
+    if (!origin || !dest || !isFinite(origin.lat) || !isFinite(dest.lat)) return "";
+    const o = origin.lat + "," + origin.lon;
+    const d = dest.lat + "," + dest.lon;
+    return (
+      "https://www.google.com/maps/dir/?api=1&origin=" +
+      encodeURIComponent(o) +
+      "&destination=" +
+      encodeURIComponent(d)
+    );
+  }
+
+  function formatDistanceKm(km) {
+    return formatNumber(Number(km)) + " กม.";
+  }
+
+  function distanceFromShopText(km, config) {
+    return "ห่างจากร้าน (" + shopOriginLabel(config) + ") ประมาณ " + formatDistanceKm(km);
+  }
+
   /**
    * @param {object} input
    * @param {number} input.areaSqm
@@ -45,6 +113,11 @@
     const cfg = config || root.TILE_ESTIMATOR_CONFIG;
     const area = Number(input.areaSqm);
     const distanceKm = Math.max(0, Number(input.distanceKm) || 0);
+    const distanceSource = input.distanceSource || "";
+    const distanceLabel = input.distanceLabel || "";
+    const destLat = input.destLat;
+    const destLon = input.destLon;
+    const distanceApproximate = distanceSource === "geo" || distanceSource === "area" || input.distanceApproximate === true;
     const tileSize = input.tileSize;
     const location = input.location;
     const site = input.site;
@@ -101,6 +174,9 @@
       location,
       site,
       distanceKm,
+      distanceSource,
+      distanceLabel,
+      distanceApproximate,
       demolish,
       leveling,
       levelingAllowed,
@@ -124,6 +200,12 @@
       location,
       site,
       distanceKm,
+      distanceSource,
+      distanceLabel,
+      destLat: destLat != null ? Number(destLat) : null,
+      destLon: destLon != null ? Number(destLon) : null,
+      distanceApproximate: !!distanceApproximate && distanceSource !== "manual",
+      beyondServiceRadius: isBeyondServiceRadius(distanceKm, cfg),
       demolish,
       leveling,
       customerSuppliesTiles: !!input.customerSuppliesTiles,
@@ -163,6 +245,9 @@
       location,
       site,
       distanceKm,
+      distanceSource,
+      distanceLabel,
+      distanceApproximate,
       demolish,
       leveling,
       minApplied,
@@ -258,24 +343,45 @@
       });
     }
 
+    const originLabel = shopOriginLabel(cfg);
     if (distanceKm <= 0) {
       reasons.push({
         id: "distance",
         title: "ยังไม่นับค่าเดินทางเพิ่ม",
-        text: "ถ้าหน้างานอยู่ใกล้บ้านช่าง จะไม่บวกค่าเดินทางในหน้านี้ หากอยู่ไกล ค่าน้ำมันและเวลาเดินทางในแต่ละวันจะเพิ่มขึ้น",
+        text:
+          "ถ้าหน้างานอยู่ใกล้ร้านที่ " +
+          originLabel +
+          " จะไม่บวกค่าเดินทางในหน้านี้ หากอยู่ไกล ค่าน้ำมันและเวลาเดินทางในแต่ละวันจะเพิ่มขึ้น",
       });
     } else {
+      const approxNote = distanceApproximate ? " เป็นระยะประมาณจากเส้นตรงคูณตัวคูณถนน ไม่ใช่เส้นทางจริงในแผนที่" : "";
+      const where = distanceLabel ? " (" + distanceLabel + ")" : "";
       reasons.push({
         id: "distance",
-        title: "ระยะทางขาเดียว " + formatNumber(distanceKm) + " กม.",
+        title: "ห่างจากร้าน (" + originLabel + ") ประมาณ " + formatNumber(distanceKm) + " กม.",
         text:
           "ไป-กลับประมาณ " +
           formatNumber(distanceKm * 2) +
-          " กม. ต่อวัน คิดค่าเดินทางตัวอย่าง " +
+          " กม. ต่อวัน" +
+          where +
+          " คิดค่าเดินทางตัวอย่าง " +
           formatBaht(travel) +
           " สำหรับงานประมาณ " +
           days +
-          " วัน หน้างานที่ไกลกว่าทำให้ค่าใช้จ่ายต่อวันสูงขึ้นชัดเจน",
+          " วัน" +
+          approxNote,
+      });
+    }
+    if (isBeyondServiceRadius(distanceKm, cfg)) {
+      reasons.push({
+        id: "service-radius",
+        title: "อยู่นอกรัศมีให้บริการโดยประมาณ",
+        text:
+          "ระยะทางประมาณเกิน " +
+          formatNumber(cfg.maxServiceRadiusKm) +
+          " กม. จากร้านที่ " +
+          originLabel +
+          " แนะนำให้โทรสอบถามก่อนว่าไปถึงได้หรือไม่ ค่าในหน้านี้ยังเป็นเพียงตัวอย่าง",
       });
     }
 
@@ -362,7 +468,9 @@
       "ขนาดกระเบื้อง: " + result.tileSize.replace("x", "×") + " ซม.",
       "บริเวณ: " + locLabel[result.location],
       "หน้างาน: " + siteLabel[result.site],
-      "ระยะทางขาเดียว: " + formatNumber(result.distanceKm) + " กม.",
+      distanceFromShopText(result.distanceKm, c) +
+        (result.distanceLabel ? " · " + result.distanceLabel : "") +
+        (result.distanceApproximate ? " (ระยะประมาณ)" : ""),
       "รายการเพิ่ม: " + extras.join(", "),
       "",
       "ค่าแรงโดยประมาณ: " + formatBahtRange(result.rangeLow, result.rangeHigh),
@@ -384,6 +492,7 @@
     return [
       "สรุปประเมินค่าปูกระเบื้อง (ราคาตัวอย่าง ยังไม่ใช่ราคาจริง)",
       "ร้าน: " + c.shopName,
+      distanceFromShopText(result.distanceKm, c),
       "พื้นที่: " + formatNumber(result.area) + " ตร.ม. · กระเบื้อง " + result.tileSize.replace("x", "×") + " ซม.",
       "ค่าแรงโดยประมาณ: " + formatBahtRange(result.rangeLow, result.rangeHigh),
       "ใช้เวลาประมาณ: " + result.days + " วันทำงาน",
@@ -399,6 +508,15 @@
     formatNumber: formatNumber,
     buildSummaryText: buildSummaryText,
     buildShareText: buildShareText,
+    haversineKm: haversineKm,
+    estimatedRoadKm: estimatedRoadKm,
+    roadKmFromOrigin: roadKmFromOrigin,
+    shopOrigin: shopOrigin,
+    shopOriginLabel: shopOriginLabel,
+    isBeyondServiceRadius: isBeyondServiceRadius,
+    buildMapsDirectionsUrl: buildMapsDirectionsUrl,
+    distanceFromShopText: distanceFromShopText,
+    formatDistanceKm: formatDistanceKm,
   };
 
   root.TileEstimatorCalc = api;
