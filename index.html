@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1f5c4b" />
+    <meta name="description" content="ประเมินค่าปูกระเบื้องเบื้องต้น จากพื้นที่ ขนาดกระเบื้อง บริเวณ หน้างาน และระยะทาง — ราคาตัวอย่าง ยังไม่ใช่ราคาจริง" />
+    <title>ประเมินค่าปูกระเบื้อง — ช่างกระเบื้อง (ชื่อร้านตัวอย่าง)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f5c4b'/%3E%3Crect x='6' y='6' width='9' height='9' fill='%23f4efe6'/%3E%3Crect x='17' y='6' width='9' height='9' fill='%23e7c8a0'/%3E%3Crect x='6' y='17' width='9' height='9' fill='%23d9a56a'/%3E%3Crect x='17' y='17' width='9' height='9' fill='%23f4efe6'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div class="page" id="page">
+      <header class="site-header">
+        <div class="logo-mark" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div>
+          <p class="brand-name" id="shopName">ช่างกระเบื้อง (ชื่อร้านตัวอย่าง)</p>
+          <p class="brand-sub">ประเมินค่าแรงปูกระเบื้องเบื้องต้น</p>
+        </div>
+      </header>
+
+      <div class="example-banner" role="status" id="exampleBanner">ราคาตัวอย่าง ยังไม่ใช่ราคาจริง</div>
+
+      <main>
+        <section id="wizard">
+          <div class="intro" id="intro">
+            <h2>ปูตารางเมตรละเท่าไหร่ ตอบตรง ๆ ไม่ได้</h2>
+            <p>งานแต่ละที่ต้นทุนไม่เท่ากัน กรอกแค่ 5 ข้อ แล้วดูช่วงค่าแรง พร้อมเหตุผลเป็นภาษาธรรมดา</p>
+          </div>
+
+          <div class="progress" id="progressWrap">
+            <div class="progress-bar" aria-hidden="true"><i id="progressBar"></i></div>
+            <div class="progress-label" id="progressLabel">ขั้นตอน 1 จาก 5</div>
+          </div>
+
+          <form id="estimatorForm" class="panel" novalidate>
+            <!-- Step 1: area -->
+            <section class="step is-active" data-step="1" aria-labelledby="step1Title">
+              <p class="step-kicker">ขั้นตอนที่ 1</p>
+              <h3 class="step-title" id="step1Title">จะปูพื้นที่เท่าไหร่</h3>
+              <p class="step-help">ถ้าวัดไม่เป๊ะ ใส่ตัวเลขคร่าว ๆ ได้ก่อน งานเล็ก ๆ เช่น ผนังครัว 3 ตร.ม. จะคิดค่าแรงขั้นต่ำต่องาน ไม่คิดแค่รายตารางเมตร</p>
+              <label class="field-label" for="areaInput">พื้นที่รวม (ตารางเมตร)</label>
+              <div class="area-row">
+                <input id="areaInput" name="areaSqm" type="number" inputmode="decimal" min="0.5" max="2000" step="0.1" placeholder="เช่น 25" required aria-describedby="areaError" />
+                <span class="unit">ตร.ม.</span>
+              </div>
+              <div class="chips" id="areaChips"></div>
+              <p class="error" id="areaError" aria-live="polite"></p>
+            </section>
+
+            <!-- Step 2: tile size -->
+            <section class="step" data-step="2" aria-labelledby="step2Title">
+              <p class="step-kicker">ขั้นตอนที่ 2</p>
+              <h3 class="step-title" id="step2Title">กระเบื้องขนาดไหน</h3>
+              <p class="step-help">แผ่นเล็กใช้เวลาต่อตารางเมตรมากกว่าแผ่นใหญ่ เพราะต้องปูทีละแผ่นมากขึ้น</p>
+              <div class="choices" id="tileChoices" role="radiogroup" aria-labelledby="step2Title" aria-describedby="tileError"></div>
+              <p class="error" id="tileError" aria-live="polite"></p>
+            </section>
+
+            <!-- Step 3: location -->
+            <section class="step" data-step="3" aria-labelledby="step3Title">
+              <p class="step-kicker">ขั้นตอนที่ 3</p>
+              <h3 class="step-title" id="step3Title">จะปูบริเวณไหน</h3>
+              <p class="step-help">พื้นโล่งปูเร็วกว่าห้องน้ำ เพราะห้องน้ำต้องตัดเศษ ตัดรูท่อ และรูก๊อกบ่อย</p>
+              <div class="choices" id="locationChoices" role="radiogroup" aria-labelledby="step3Title" aria-describedby="locationError"></div>
+              <p class="error" id="locationError" aria-live="polite"></p>
+            </section>
+
+            <!-- Step 4: site -->
+            <section class="step" data-step="4" aria-labelledby="step4Title">
+              <p class="step-kicker">ขั้นตอนที่ 4</p>
+              <h3 class="step-title" id="step4Title">หน้างานเป็นแบบไหน</h3>
+              <p class="step-help">บ้านชั้น 1 ขนของง่าย ชั้นบนต้องแบกกล่องขึ้น คอนโดมักเข้าได้เฉพาะวันและเวลาที่กำหนด</p>
+              <div class="choices" id="siteChoices" role="radiogroup" aria-labelledby="step4Title" aria-describedby="siteError"></div>
+              <p class="error" id="siteError" aria-live="polite"></p>
+
+              <p class="field-label" style="margin-top:16px">รายการเพิ่ม (ถ้ามี)</p>
+              <div class="option-list">
+                <label class="check" id="demolishLabel">
+                  <input type="checkbox" id="demolishInput" name="demolish" />
+                  <span>รื้อกระเบื้องเก่าด้วย<br /><small>คิดเพิ่มในค่าแรง เป็นอัตราตัวอย่าง</small></span>
+                </label>
+                <label class="check" id="levelingLabel">
+                  <input type="checkbox" id="levelingInput" name="leveling" />
+                  <span>ต้องปรับระดับพื้นก่อนปู<br /><small id="levelingHint">เช่น พื้นไม่เรียบหรือมีระดับไม่เท่ากัน</small></span>
+                </label>
+              </div>
+
+              <p class="field-label" style="margin-top:16px">กระเบื้องใครจัดหา</p>
+              <div class="supply choices" id="supplyChoices" role="radiogroup" aria-label="กระเบื้องใครจัดหา">
+                <button type="button" class="choice is-selected" data-supply="customer" role="radio" aria-checked="true" tabindex="0">
+                  <span class="dot" aria-hidden="true"></span>
+                  <span class="choice-title">ลูกค้าเตรียมกระเบื้องเอง</span>
+                  <span class="choice-desc">เว็บจะบอกจำนวนกล่องที่ควรเผื่อ รวมเศษตัดประมาณ 10%</span>
+                </button>
+                <button type="button" class="choice" data-supply="contractor" role="radio" aria-checked="false" tabindex="-1">
+                  <span class="dot" aria-hidden="true"></span>
+                  <span class="choice-title">ให้ช่างจัดหาให้</span>
+                  <span class="choice-desc">ยอดที่แสดงยังเป็นค่าแรงอย่างเดียว ไม่รวมค่ากระเบื้อง</span>
+                </button>
+              </div>
+            </section>
+
+            <!-- Step 5: distance -->
+            <section class="step" data-step="5" aria-labelledby="step5Title">
+              <p class="step-kicker">ขั้นตอนที่ 5</p>
+              <h3 class="step-title" id="step5Title">หน้างานอยู่ห่างแค่ไหน</h3>
+              <p class="step-help">ใส่ระยะทางขาเดียวจากบ้านช่างถึงหน้างาน ระบบจะคิดไป-กลับรายวันให้อัตโนมัติ</p>
+              <label class="field-label" for="distanceInput">ระยะทางขาเดียว (กิโลเมตร)</label>
+              <div class="area-row">
+                <input id="distanceInput" name="distanceKm" type="number" inputmode="decimal" min="0" max="500" step="1" placeholder="เช่น 10" required aria-describedby="distanceError" />
+                <span class="unit">กม.</span>
+              </div>
+              <div class="chips" id="distanceChips"></div>
+              <p class="error" id="distanceError" aria-live="polite"></p>
+            </section>
+          </form>
+
+          <div class="nav-bar" id="navBar">
+            <button type="button" class="btn btn-secondary" id="backBtn">ย้อนกลับ</button>
+            <button type="button" class="btn btn-primary" id="nextBtn">ถัดไป</button>
+          </div>
+        </section>
+
+        <section class="result" id="resultView" hidden>
+          <article class="price-card">
+            <h2 class="result-title" id="resultTitle" tabindex="-1">ผลประเมินค่าแรง</h2>
+            <p class="price-kicker">ค่าแรงโดยประมาณ (ยังไม่รวมค่ากระเบื้อง)</p>
+            <p class="price-range" id="priceRange" aria-live="polite">—</p>
+            <p class="price-note">ราคาตัวอย่าง ยังไม่ใช่ใบเสนอราคาจริง</p>
+            <p class="days-line" id="daysLine"></p>
+            <div class="facts">
+              <div class="fact">
+                <span>กระเบื้องที่ต้องใช้</span>
+                <strong id="boxLine">—</strong>
+              </div>
+              <div class="fact">
+                <span>เผื่อเศษตัดประมาณ</span>
+                <strong>10%</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="breakdown" id="breakdown">
+            <h3>ทำไมได้ราคานี้</h3>
+          </article>
+
+          <article class="cta-card">
+            <h3>ส่งรายละเอียดให้ช่างดูต่อ</h3>
+            <p>ส่งสรุปงานไปคุยรายละเอียดได้เลย ชื่อร้านกับเบอร์ด้านล่างเป็นตัวอย่าง ยังติดต่อไม่ได้</p>
+            <a class="btn btn-terra" id="lineBtn" target="_blank" rel="noopener noreferrer">ส่งสรุปทาง LINE</a>
+            <button type="button" class="btn btn-primary" id="callBtn">
+              โทรหาช่าง
+              <span class="phone-fake" id="phoneLabel">08x-xxx-xxxx (หมายเลขตัวอย่าง ยังโทรไม่ได้)</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="copyBtn">คัดลอกข้อความสรุป</button>
+            <label class="summary-label" for="summaryBox">ข้อความสรุป (ถ้าคัดลอกไม่สำเร็จ เลือกข้อความนี้ได้)</label>
+            <textarea id="summaryBox" class="summary-box" readonly rows="8"></textarea>
+            <button type="button" class="btn btn-ghost" id="restartBtn">ประเมินงานใหม่อีกครั้ง</button>
+          </article>
+
+          <article class="explainer" id="explainer">
+            <h3>ทำไมราคาต่อ ตร.ม. ถึงตอบไม่ได้</h3>
+            <p>ลูกค้าถามแบบนี้ไม่ผิดเลยครับ ซึ่งก็เข้าใจได้ เพราะยังไม่เห็นที่มาของราคา ช่างเองก็อยากบอกตัวเลขง่าย ๆ ให้ได้ แต่ค่าปูกระเบื้องขึ้นกับหลายอย่างพร้อมกัน ไม่ใช่แค่พื้นที่</p>
+            <p>ปริมาณงานมีผลมาก ถ้าผนังกันเปื้อนครัวในคอนโดแค่ 3 ตารางเมตร แม้จะบอกว่าตารางเมตรละเท่าไหร่ ก็ยังต้องขนของ ตั้งเครื่องมือ และเดินทางอยู่ดี จึงมักคิดเป็นค่าแรงขั้นต่ำต่องาน</p>
+            <p>ขนาดกระเบื้องก็ต่างกันชัด แผ่น 60×60 ตารางเมตรหนึ่งปูประมาณ 3 แผ่น แต่แผ่น 10×10 ต้องปูถึง 100 แผ่น ในพื้นที่เท่ากัน เวลาทำงานจึงไม่เท่ากัน</p>
+            <p>บริเวณที่ปูก็สำคัญ พื้นโถงหรือลานจอดรถใช้แผ่นเต็มได้เยอะ ตัดเศษน้อย ส่วนห้องน้ำปูไปไม่กี่แผ่นก็ต้องตัดมุม ตัดรูท่อ ตัดรูก๊อก จึงช้าและยากกว่ามาก</p>
+            <p>สภาพหน้างานไม่เหมือนกัน บ้านชั้น 1 ขนของง่าย แต่ชั้นบนช่างต้องแบกกระเบื้องขึ้นเป็นกล่อง ๆ กล่องละประมาณ 18–30 กิโลกรัม แล้วแต่ขนาด งาน 100 ตารางเมตรอาจหนักรวมราว 2 ตัน เฉพาะกระเบื้องยังไม่นับปูน ส่วนงานคอนโดต้องจอดรถ แลกบัตร ขึ้นลิฟต์ พื้นที่จำกัด และมักเข้าไม่ได้วันเสาร์อาทิตย์</p>
+            <p>ความใกล้ไกลก็เป็นต้นทุนจริง หน้างานที่ไป-กลับ 20 กิโลเมตร กับไป-กลับ 100 กิโลเมตร ค่าน้ำมันและเวลาเดินทางในแต่ละวันต่างกันมาก</p>
+            <p>เลยเป็นเหตุผลที่ช่างที่ทำงานอย่างมีคุณภาพ จะเสนอราคาบนความเป็นจริงที่ทำได้จบ และทีมยังอยู่ได้ ถ้าราคาต่ำจนเกินไปเพื่อแค่ให้ได้งาน สุดท้ายมักจบด้วยการทิ้งงาน หรืองานที่ไม่ได้คุณภาพ</p>
+            <p class="quote">งานก่อสร้างแพงไม่ได้แปลว่าดี แต่งานดีไม่เคยมีคำว่าถูก</p>
+          </article>
+        </section>
+      </main>
+
+      <footer class="site-foot">ตัวอย่างสำหรับนำเสนอแนวทาง · ไม่ใช่ใบเสนอราคาจริง</footer>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="config.js"></script>
+    <script src="calc.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
