@@ -805,3 +805,25 @@ footer.site-foot {
   text-underline-offset: 3px;
 }
 .maps-link[hidden], .service-note[hidden] { display: none; }
+
+.site-visit-label {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--terra-dark);
+  font-size: 1rem;
+}
+.site-visit-label[hidden],
+.site-visit-btn[hidden] { display: none; }
+.site-visit-btn {
+  width: 100%;
+  margin: 8px 0 12px;
+}
+.price-card.is-big-slab .price-range {
+  font-size: 1.45rem;
+}
+.choice-desc .tile-tag {
+  display: inline-block;
+  margin-left: 4px;
+  font-weight: 700;
+  color: var(--teal-dark);
+}

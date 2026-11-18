@@ -29,6 +29,18 @@
     return area ? 1 / area : 0;
   }
 
+  function isBigSlab(tileSize, config) {
+    const cfg = config || root.TILE_ESTIMATOR_CONFIG;
+    const list = (cfg && cfg.bigSlabTileSizes) || ["120x240", "160x320"];
+    return list.indexOf(tileSize) !== -1;
+  }
+
+  function isLargeTile(tileSize, config) {
+    const cfg = config || root.TILE_ESTIMATOR_CONFIG;
+    const list = (cfg && cfg.largeTileSizes) || ["90x180", "120x240", "160x320"];
+    return list.indexOf(tileSize) !== -1;
+  }
+
   function toRad(deg) {
     return (deg * Math.PI) / 180;
   }
@@ -100,7 +112,7 @@
   /**
    * @param {object} input
    * @param {number} input.areaSqm
-   * @param {string} input.tileSize  60x60 | 30x30 | 10x10 | 60x120
+   * @param {string} input.tileSize  10x10 | 30x30 | 60x60 | 60x120 | 90x180 | 120x240 | 160x320
    * @param {string} input.location  hall_floor | parking | bathroom_floor_wall | kitchen_wall
    * @param {string} input.site      house_ground | house_upper | condo
    * @param {number} input.distanceKm ระยะทางขาเดียว (กม.)
@@ -150,12 +162,15 @@
     const total = labor + travel;
 
     const step = cfg.rounding || 100;
-    let rangeLow = floorTo(total * cfg.rangeLowFactor, step);
-    let rangeHigh = ceilTo(total * cfg.rangeHighFactor, step);
+    const slab = isBigSlab(tileSize, cfg);
+    const lowF = slab ? (cfg.bigSlabRangeLowFactor || 0.55) : cfg.rangeLowFactor;
+    const highF = slab ? (cfg.bigSlabRangeHighFactor || 2.5) : cfg.rangeHighFactor;
+    let rangeLow = floorTo(total * lowF, step);
+    let rangeHigh = ceilTo(total * highF, step);
     // ช่วงล่างไม่ต่ำกว่าค่าแรงขั้นต่ำ แม้แรงดิบจะพอดีหรือสูงกว่าขั้นต่ำเพียงเล็กน้อย
     rangeLow = Math.max(rangeLow, cfg.minimumJobCharge);
     if (rangeHigh <= rangeLow) {
-      rangeHigh = rangeLow + step * 5;
+      rangeHigh = rangeLow + step * (slab ? 20 : 5);
     }
 
     const coverArea = area * cfg.wasteFactor;
@@ -206,6 +221,9 @@
       destLon: destLon != null ? Number(destLon) : null,
       distanceApproximate: !!distanceApproximate && distanceSource !== "manual",
       beyondServiceRadius: isBeyondServiceRadius(distanceKm, cfg),
+      isBigSlab: slab,
+      needsSiteVisit: slab,
+      siteVisitLabel: slab ? (cfg.siteVisitLabel || "ต้องดูหน้างานก่อนเสนอราคา") : "",
       demolish,
       leveling,
       customerSuppliesTiles: !!input.customerSuppliesTiles,
@@ -278,20 +296,42 @@
     }
 
     const tileText = {
-      "60x60":
-        "กระเบื้อง 60×60 แผ่นหนึ่งประมาณ 0.36 ตร.ม. ตกประมาณ 3 แผ่นต่อตารางเมตร ปูพื้นโถงหรือพื้นที่โล่งได้ค่อนข้างเร็ว",
-      "30x30":
-        "กระเบื้อง 30×30 แผ่นหนึ่งประมาณ 0.09 ตร.ม. ตกประมาณ 11 แผ่นต่อตารางเมตร ใช้เวลาต่อตารางเมตรมากกว่าแผ่นใหญ่",
       "10x10":
-        "กระเบื้อง 10×10 แผ่นเล็ก ตารางเมตรหนึ่งต้องปูถึงประมาณ 100 แผ่น ใช้เวลานานกว่าแผ่น 60×60 มาก เพราะต้องวางและจัดแนวทีละแผ่น",
+        "กระเบื้อง 10×10 เป็นแผ่นเล็ก ตารางเมตรหนึ่งต้องปูถึงประมาณ 100 แผ่น จึงช้ากว่าแผ่น 60×60 มาก เพราะต้องวางและจัดแนวทีละแผ่น ค่าแรงต่อตารางเมตรจึงสูงกว่าแผ่นที่ปูเร็วที่สุด",
+      "30x30":
+        "กระเบื้อง 30×30 แผ่นหนึ่งประมาณ 0.09 ตร.ม. ตกประมาณ 11 แผ่นต่อตารางเมตร เป็นแผ่นเล็กที่ปูช้ากว่าแผ่น 60×60 จึงคิดค่าแรงพื้นฐานสูงกว่า",
+      "60x60":
+        "กระเบื้อง 60×60 แผ่นหนึ่งประมาณ 0.36 ตร.ม. ตกประมาณ 3 แผ่นต่อตารางเมตร เป็นขนาดที่ปูเร็วที่สุดและค่าแรงพื้นฐานต่ำสุดในรายการนี้",
       "60x120":
-        "กระเบื้อง 60×120 เป็นแผ่นใหญ่ ตารางเมตรหนึ่งใช้ประมาณ 1–2 แผ่น แต่ยกยาก ต้องจัดระดับและแนวให้ดี จึงคิดค่าแรงสูงกว่าแผ่น 60×60 ทั่วไป",
+        "กระเบื้อง 60×120 เป็นแผ่นใหญ่กว่า 60×60 ตารางเมตรหนึ่งใช้ประมาณ 1–2 แผ่น แต่ยกยาก ต้องจัดระดับดี จึงคิดค่าแรงสูงขึ้นเป็นขั้นจากแผ่น 60×60",
+      "90x180":
+        "กระเบื้อง 90×180 เป็นแผ่นใหญ่ ค่าแรงสูงขึ้นเป็นขั้นจากแผ่น 60×120 เพราะยกยาก ต้องจัดแนวและระดับอย่างระวัง",
+      "120x240":
+        "กระเบื้อง 120×240 เป็นแผ่นใหญ่พิเศษ (สแลบ) ค่าแรงสูงขึ้นอีกขั้น และยังให้ได้แค่ช่วงราคาคร่าว ๆ เพราะต้องดูหน้างานก่อนเสนอราคาจริง",
+      "160x320":
+        "กระเบื้อง 160×320 ซม. เป็นแผ่นใหญ่พิเศษขนาดใหญ่สุดในรายการนี้ ค่าแรงสูงสุดเป็นขั้น และยังให้ได้แค่ช่วงราคาคร่าว ๆ ต้องดูหน้างานก่อนเสนอราคาจริง",
     };
     reasons.push({
       id: "tile",
       title: "ขนาดกระเบื้อง " + tileSize.replace("x", "×") + " ซม.",
-      text: tileText[tileSize],
+      text: tileText[tileSize] || "",
     });
+    if (isLargeTile(tileSize, cfg)) {
+      reasons.push({
+        id: "large-tile",
+        title: "แผ่นใหญ่ต้องเตรียมต่างจากแผ่น 60×60",
+        text:
+          "งานขนาดนี้ต้องใช้ช่าง 2 คนขึ้นไปและเครื่องมือยกพิเศษ การขนย้ายยาก และต้องใช้ปูนกาวชนิดพิเศษที่ราคาสูงกว่าปูนกาวแผ่น 60×60 ปกติมากกว่า 4 เท่า",
+      });
+    }
+    if (isBigSlab(tileSize, cfg)) {
+      reasons.push({
+        id: "site-visit",
+        title: cfg.siteVisitLabel || "ต้องดูหน้างานก่อนเสนอราคา",
+        text:
+          "ช่วงราคาด้านบนเป็นเพียงกรอบคร่าว ๆ จากราคาตัวอย่าง ไม่ใช่ใบเสนอราคา แผ่นใหญ่พิเศษต้นทุนขึ้นกับหน้างานจริง จึงต้องนัดดูหน้างานก่อนเสนอราคาที่ทำได้",
+      });
+    }
 
     const locText = {
       hall_floor: "พื้นโถงหรือพื้นห้องทั่วไปปูได้เร็วกว่า เพราะใช้แผ่นเต็มได้เยอะ ตัดเศษไม่มาก",
@@ -473,7 +513,9 @@
         (result.distanceApproximate ? " (ระยะประมาณ)" : ""),
       "รายการเพิ่ม: " + extras.join(", "),
       "",
-      "ค่าแรงโดยประมาณ: " + formatBahtRange(result.rangeLow, result.rangeHigh),
+      result.needsSiteVisit
+        ? "ช่วงราคาคร่าว ๆ: " + formatBahtRange(result.rangeLow, result.rangeHigh) + " (" + (result.siteVisitLabel || "ต้องดูหน้างานก่อนเสนอราคา") + ")"
+        : "ค่าแรงโดยประมาณ: " + formatBahtRange(result.rangeLow, result.rangeHigh),
       "ใช้เวลาประมาณ: " + result.days + " วันทำงาน",
       "กระเบื้องโดยประมาณ: " + result.boxes + " กล่อง (รวมเผื่อเศษ ~10%)",
       "",
@@ -494,10 +536,27 @@
       "ร้าน: " + c.shopName,
       distanceFromShopText(result.distanceKm, c),
       "พื้นที่: " + formatNumber(result.area) + " ตร.ม. · กระเบื้อง " + result.tileSize.replace("x", "×") + " ซม.",
-      "ค่าแรงโดยประมาณ: " + formatBahtRange(result.rangeLow, result.rangeHigh),
+      result.needsSiteVisit
+        ? "ช่วงราคาคร่าว ๆ: " + formatBahtRange(result.rangeLow, result.rangeHigh) + " (" + (result.siteVisitLabel || "ต้องดูหน้างานก่อนเสนอราคา") + ")"
+        : "ค่าแรงโดยประมาณ: " + formatBahtRange(result.rangeLow, result.rangeHigh),
       "ใช้เวลาประมาณ: " + result.days + " วันทำงาน",
       "กระเบื้องโดยประมาณ: " + result.boxes + " กล่อง (รวมเผื่อเศษ ~10%)",
       "หมายเหตุ: ตัวเลขเป็นตัวอย่างสำหรับคุยงานเท่านั้น ยังไม่ใช่ใบเสนอราคาจริง",
+    ].join("\n");
+  }
+
+
+  function buildSiteVisitText(result, cfg) {
+    const c = cfg || root.TILE_ESTIMATOR_CONFIG;
+    const label = (result && result.siteVisitLabel) || (c && c.siteVisitLabel) || "ต้องดูหน้างานก่อนเสนอราคา";
+    return [
+      "ขอนัดดูหน้างานเพื่อเสนอราคาแผ่นใหญ่พิเศษ",
+      "ราคาตัวอย่าง ยังไม่ใช่ราคาจริง",
+      "ร้าน: " + c.shopName,
+      "ขนาดกระเบื้อง: " + result.tileSize.replace("x", "×") + " ซม.",
+      "พื้นที่: " + formatNumber(result.area) + " ตร.ม.",
+      "ช่วงคร่าว ๆ: " + formatBahtRange(result.rangeLow, result.rangeHigh) + " (" + label + ")",
+      "หมายเหตุ: แผ่นใหญ่พิเศษต้องใช้ช่างอย่างน้อย 2 คน เครื่องมือยกพิเศษ ปูนกาวพิเศษ และการขนย้ายที่ซับซ้อนกว่าแผ่น 60×60 จึงขออนุญาตไปดูหน้างานก่อนเสนอราคาครับ",
     ].join("\n");
   }
 
@@ -506,8 +565,11 @@
     formatBaht: formatBaht,
     formatBahtRange: formatBahtRange,
     formatNumber: formatNumber,
+    buildSiteVisitText: buildSiteVisitText,
     buildSummaryText: buildSummaryText,
     buildShareText: buildShareText,
+    isBigSlab: isBigSlab,
+    isLargeTile: isLargeTile,
     haversineKm: haversineKm,
     estimatedRoadKm: estimatedRoadKm,
     roadKmFromOrigin: roadKmFromOrigin,

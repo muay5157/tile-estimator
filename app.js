@@ -22,10 +22,13 @@
   };
 
   const TILES = [
-    { id: "60x60", title: "60×60 ซม.", desc: "แผ่นละ 0.36 ตร.ม. ประมาณ 3 แผ่นต่อตารางเมตร ปูพื้นโล่งได้ค่อนข้างเร็ว" },
-    { id: "30x30", title: "30×30 ซม.", desc: "แผ่นละ 0.09 ตร.ม. ประมาณ 11 แผ่นต่อตารางเมตร ใช้เวลาต่อตารางเมตรมากกว่าแผ่นใหญ่" },
-    { id: "10x10", title: "10×10 ซม.", desc: "แผ่นเล็ก ตารางเมตรหนึ่งปูถึง 100 แผ่น ใช้เวลานานกว่ามาก" },
-    { id: "60x120", title: "60×120 ซม.", desc: "แผ่นใหญ่ ยกยาก ต้องจัดระดับดี ค่าแรงมักสูงกว่าแผ่น 60×60 ทั่วไป" },
+    { id: "10x10", title: "10×10 ซม.", desc: "แผ่นเล็ก ตารางเมตรหนึ่งปูถึง 100 แผ่น จึงช้ากว่าแผ่น 60×60 มาก" },
+    { id: "30x30", title: "30×30 ซม.", desc: "แผ่นเล็ก ประมาณ 11 แผ่นต่อตารางเมตร ปูช้ากว่าแผ่น 60×60" },
+    { id: "60x60", title: "60×60 ซม.", desc: "ปูเร็วที่สุด และค่าแรงพื้นฐานต่ำสุด ประมาณ 3 แผ่นต่อตารางเมตร" },
+    { id: "60x120", title: "60×120 ซม.", desc: "แผ่นใหญ่ขึ้น ค่าแรงสูงขึ้นเป็นขั้นจากแผ่น 60×60 ยกยาก ต้องจัดระดับดี" },
+    { id: "90x180", title: "90×180 ซม.", desc: "แผ่นใหญ่ ค่าแรงสูงขึ้นอีกขั้น ยกและจัดแนวยากกว่าแผ่น 60×120" },
+    { id: "120x240", title: "120×240 ซม. แผ่นใหญ่พิเศษ", desc: "ต้องดูหน้างานก่อนเสนอราคา ใช้ช่างอย่างน้อย 2 คนและเครื่องมือยกพิเศษ" },
+    { id: "160x320", title: "160×320 ซม. แผ่นใหญ่พิเศษ", desc: "แผ่นใหญ่สุดในรายการ ต้องดูหน้างานก่อนเสนอราคา ขนย้ายยาก ใช้ปูนกาวพิเศษ" },
   ];
 
   const LOCATIONS = [
@@ -84,7 +87,10 @@
     nextBtn: document.getElementById("nextBtn"),
     navBar: document.getElementById("navBar"),
     resultView: document.getElementById("resultView"),
+    priceKicker: document.getElementById("priceKicker"),
     priceRange: document.getElementById("priceRange"),
+    siteVisitLabel: document.getElementById("siteVisitLabel"),
+    siteVisitBtn: document.getElementById("siteVisitBtn"),
     daysLine: document.getElementById("daysLine"),
     boxLine: document.getElementById("boxLine"),
     breakdown: document.getElementById("breakdown"),
@@ -501,6 +507,28 @@
     els.page.classList.add("is-result");
 
     els.priceRange.textContent = calc.formatBahtRange(result.rangeLow, result.rangeHigh);
+    const bigSlab = !!result.needsSiteVisit;
+    if (els.priceKicker) {
+      els.priceKicker.textContent = bigSlab
+        ? "ช่วงราคาคร่าว ๆ (ยังไม่ใช่ใบเสนอราคา)"
+        : "ค่าแรงโดยประมาณ (ยังไม่รวมค่ากระเบื้อง)";
+    }
+    if (els.siteVisitLabel) {
+      els.siteVisitLabel.hidden = !bigSlab;
+      if (bigSlab) els.siteVisitLabel.textContent = result.siteVisitLabel || "ต้องดูหน้างานก่อนเสนอราคา";
+    }
+    if (els.priceRange && els.priceRange.closest) {
+      const card = els.priceRange.closest(".price-card");
+      if (card) card.classList.toggle("is-big-slab", bigSlab);
+    }
+    if (els.siteVisitBtn) {
+      els.siteVisitBtn.hidden = !bigSlab;
+      if (bigSlab && calc.buildSiteVisitText) {
+        els.siteVisitBtn.href = "https://line.me/R/share?text=" + encodeURIComponent(calc.buildSiteVisitText(result, cfg));
+      } else {
+        els.siteVisitBtn.removeAttribute("href");
+      }
+    }
     els.daysLine.textContent = "ใช้เวลาประมาณ " + result.days + " วันทำงาน";
     if (els.distanceLine) {
       const extra = result.distanceLabel ? " · " + result.distanceLabel : "";
@@ -583,6 +611,14 @@
     els.resultView.hidden = true;
     els.resultView.classList.remove("is-visible");
     els.page.classList.remove("is-result");
+    if (els.siteVisitLabel) els.siteVisitLabel.hidden = true;
+    if (els.siteVisitBtn) {
+      els.siteVisitBtn.hidden = true;
+      els.siteVisitBtn.removeAttribute("href");
+    }
+    if (els.priceKicker) els.priceKicker.textContent = "ค่าแรงโดยประมาณ (ยังไม่รวมค่ากระเบื้อง)";
+    const card = els.priceRange && els.priceRange.closest ? els.priceRange.closest(".price-card") : null;
+    if (card) card.classList.remove("is-big-slab");
     showStep(1);
   }
 

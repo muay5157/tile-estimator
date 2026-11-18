@@ -195,6 +195,117 @@ assert(maps.indexOf("destination=") !== -1, "maps url has destination");
 assert(!/api[_-]?key|key=/i.test(maps), "maps url has no API key");
 assert(calc.buildMapsDirectionsUrl(origin, null) === "", "maps url empty without destination");
 
+
+console.log("\n=== Tile rates: 60x60 cheapest, monotonic jump for larger ===");
+const rates = config.baseLaborPerSqm;
+assert(rates["60x60"] === 500, "60x60 example rate stays 500 (hero A/B/C)");
+assert(rates["30x30"] === 620, "30x30 example rate stays 620");
+assert(rates["10x10"] === 750, "10x10 example rate stays 750");
+assert(rates["60x60"] < rates["30x30"] && rates["60x60"] < rates["10x10"], "small tiles slower/pricier than 60x60");
+assert(rates["60x60"] < rates["60x120"], "60x120 jumps above 60x60");
+assert(rates["60x120"] < rates["90x180"], "90x180 jumps above 60x120");
+assert(rates["90x180"] < rates["120x240"], "120x240 jumps above 90x180");
+assert(rates["120x240"] < rates["160x320"], "160x320 jumps above 120x240");
+const jumpOrder = ["60x60", "60x120", "90x180", "120x240", "160x320"];
+for (let i = 1; i < jumpOrder.length; i++) {
+  assert(
+    rates[jumpOrder[i]] > rates[jumpOrder[i - 1]],
+    jumpOrder[i] + " labor rate is a jump above " + jumpOrder[i - 1]
+  );
+}
+["10x10","30x30","60x60","60x120","90x180","120x240","160x320"].forEach((s) => {
+  assert(rates[s] > 0 && config.tileAreaM2[s] > 0, s + " has rate and tile area");
+});
+
+console.log("\n=== Big slab: wide range, site-visit label, large-tile reasons ===");
+const slab = calc.calculateEstimate({
+  areaSqm: 25,
+  location: "hall_floor",
+  tileSize: "120x240",
+  site: "house_ground",
+  demolish: false,
+  distanceKm: 8,
+}, config);
+assert(slab.isBigSlab === true, "120x240 is a big slab");
+assert(slab.needsSiteVisit === true, "120x240 needs a site visit");
+assert(slab.siteVisitLabel === "ต้องดูหน้างานก่อนเสนอราคา", "site-visit label");
+const mid = slab.total;
+assert(slab.rangeLow < mid * 0.75, "big-slab low bound is a wide range (well below normal 0.90)");
+assert(slab.rangeHigh > mid * 1.5, "big-slab high bound is a wide range (well above normal 1.15)");
+assert(slab.rangeHigh / slab.rangeLow >= 2, "big-slab displayed span is at least 2x");
+const reasonIds = slab.reasons.map((r) => r.id);
+assert(reasonIds.indexOf("large-tile") !== -1, "120x240 includes large-tile reasons");
+assert(reasonIds.indexOf("site-visit") !== -1, "120x240 includes site-visit reason");
+const large = slab.reasons.find((r) => r.id === "large-tile");
+assert(large.text.indexOf("ต้องใช้ช่าง 2 คนขึ้นไปและเครื่องมือยกพิเศษ") !== -1, "reason: 2+ workers and special lifting tools");
+assert(large.text.indexOf("ปูนกาวชนิดพิเศษ") !== -1 && large.text.indexOf("มากกว่า 4 เท่า") !== -1, "reason: special adhesive more than 4x");
+assert(large.text.indexOf("การขนย้ายยาก") !== -1, "reason: hard to move");
+const tile60 = slab.reasons.find((r) => r.id === "tile");
+assert(tile60 && tile60.text.indexOf("ต้องดูหน้างานก่อนเสนอราคา") !== -1, "120x240 tile reason mentions site visit");
+
+const slab2 = calc.calculateEstimate({
+  areaSqm: 20,
+  location: "hall_floor",
+  tileSize: "160x320",
+  site: "house_ground",
+  demolish: false,
+  distanceKm: 8,
+}, config);
+assert(slab2.isBigSlab && slab2.needsSiteVisit, "160x320 is a big slab");
+assert(slab2.rangeHigh / slab2.rangeLow >= 2, "160x320 also uses a wide range");
+assert(calc.buildSiteVisitText(slab2, config).indexOf("นัดดูหน้างาน") !== -1, "site-visit share text asks for a visit");
+assert(calc.buildSummaryText(slab2, config).indexOf("ต้องดูหน้างานก่อนเสนอราคา") !== -1, "summary mentions site visit");
+
+const midSize = calc.calculateEstimate({
+  areaSqm: 25,
+  location: "hall_floor",
+  tileSize: "90x180",
+  site: "house_ground",
+  demolish: false,
+  distanceKm: 8,
+}, config);
+assert(midSize.isBigSlab === false, "90x180 is large but not a big slab");
+assert(midSize.needsSiteVisit === false, "90x180 still shows a regular quote range");
+assert(midSize.reasons.some((r) => r.id === "large-tile"), "90x180 includes the three large-tile reasons");
+assert(!midSize.reasons.some((r) => r.id === "site-visit"), "90x180 does not force a site-visit quote");
+// regular range tightness
+assert(midSize.rangeLow >= Math.floor(midSize.total * 0.9 / 100) * 100, "90x180 still uses the standard low factor");
+assert(midSize.rangeHigh <= Math.ceil(midSize.total * 1.15 / 100) * 100 + 0, "90x180 still uses the standard high factor");
+
+const sixty = calc.calculateEstimate({
+  areaSqm: 20,
+  location: "hall_floor",
+  tileSize: "60x60",
+  site: "house_ground",
+  demolish: false,
+  distanceKm: 8,
+}, config);
+assert(sixty.reasons.find((r) => r.id === "tile").text.indexOf("ปูเร็วที่สุด") !== -1, "60x60 reason says fastest");
+assert(sixty.reasons.find((r) => r.id === "tile").text.indexOf("ค่าแรงพื้นฐานต่ำสุด") !== -1, "60x60 reason says cheapest base labor");
+assert(!sixty.reasons.some((r) => r.id === "large-tile"), "60x60 has no large-tile surcharge reasons");
+
+const small = calc.calculateEstimate({
+  areaSqm: 20,
+  location: "hall_floor",
+  tileSize: "10x10",
+  site: "house_ground",
+  demolish: false,
+  distanceKm: 8,
+}, config);
+assert(small.reasons.find((r) => r.id === "tile").text.indexOf("ช้ากว่าแผ่น 60×60") !== -1, "10x10 reason says slower than 60x60");
+
+const mid120 = calc.calculateEstimate({
+  areaSqm: 20,
+  location: "hall_floor",
+  tileSize: "60x120",
+  site: "house_ground",
+  demolish: false,
+  distanceKm: 8,
+}, config);
+assert(mid120.labor > sixty.labor, "same job: 60x120 labor is higher than 60x60");
+assert(!mid120.reasons.some((r) => r.id === "large-tile"), "60x120 uses a lighter (not full three-point) explanation");
+
+
 console.log("\n=== Done:", failed === 0 ? "ALL PASSED" : failed + " failed", "===");
 process.exit(failed === 0 ? 0 : 1);
 

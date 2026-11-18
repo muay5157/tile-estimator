@@ -124,6 +124,50 @@ async function main() {
   await page.screenshot({ path: path.join(shots, "form-step.png"), fullPage: false });
   pass("Saved shots/form-step.png");
 
+  // Tile-size step: all sizes, 60x60 fastest/cheapest, full-page shot at 390x844
+  await page.locator("#areaInput").fill("20");
+  await page.locator("#nextBtn").click();
+  await page.locator('.step[data-step="2"]').waitFor({ state: "visible" });
+  await waitFonts(page);
+  const expectedTiles = ["10x10", "30x30", "60x60", "60x120", "90x180", "120x240", "160x320"];
+  for (const id of expectedTiles) {
+    const n = await page.locator(`#tileChoices .choice[data-value="${id}"]`).count();
+    if (n === 1) pass("Tile option present: " + id);
+    else fail("Missing or duplicate tile option: " + id + " count=" + n);
+  }
+  const sixtyCard = await page.locator('#tileChoices .choice[data-value="60x60"]').innerText();
+  if (sixtyCard.includes("เร็วที่สุด") && sixtyCard.includes("ต่ำสุด")) pass("60x60 card says fastest and cheapest");
+  else fail("60x60 card missing fastest/cheapest copy: " + sixtyCard);
+  const slabCard = await page.locator('#tileChoices .choice[data-value="120x240"]').innerText();
+  if (slabCard.includes("ต้องดูหน้างานก่อนเสนอราคา")) pass("120x240 card mentions site visit");
+  else fail("120x240 card missing site-visit copy: " + slabCard);
+  await page.evaluate(() => {
+    const nav = document.getElementById("navBar");
+    const pageEl = document.getElementById("page");
+    if (nav) {
+      nav.dataset.prevPosition = nav.style.position;
+      nav.style.position = "static";
+      nav.style.transform = "none";
+    }
+    if (pageEl) {
+      pageEl.dataset.prevPad = pageEl.style.paddingBottom;
+      pageEl.style.paddingBottom = "16px";
+    }
+  });
+  await page.screenshot({ path: path.join(shots, "tile-size-step.png"), fullPage: true });
+  pass("Saved shots/tile-size-step.png");
+  await page.evaluate(() => {
+    const nav = document.getElementById("navBar");
+    const pageEl = document.getElementById("page");
+    if (nav) {
+      nav.style.position = nav.dataset.prevPosition || "";
+      nav.style.transform = "";
+    }
+    if (pageEl) pageEl.style.paddingBottom = pageEl.dataset.prevPad || "";
+  });
+  await page.locator("#backBtn").click();
+  await page.locator('.step[data-step="1"]').waitFor({ state: "visible" });
+
   // Scenario A
   await fillScenario(page, {
     area: 3,
@@ -188,6 +232,16 @@ async function main() {
   if (!explainerText.includes("งานก่อสร้างแพงไม่ได้แปลว่าดี") || !explainerText.includes("งานดีไม่เคยมีคำว่าถูก")) {
     fail("Explainer missing key proverb");
   } else pass("Explainer includes proverb");
+
+
+  if (!explainerText.includes("60×60 ปูเร็วที่สุด") || !explainerText.includes("ค่าแรงพื้นฐานต่ำสุด")) {
+    fail("Explainer missing 60x60 fastest/cheapest copy");
+  } else pass("Explainer says 60x60 is fastest and cheapest");
+  if (!explainerText.includes("สูงขึ้นเป็นขั้น")) fail("Explainer missing stepwise higher labor for larger tiles");
+  else pass("Explainer mentions stepwise rates for larger tiles");
+  if (!explainerText.includes("เครื่องมือยกพิเศษ") || !explainerText.includes("ปูนกาวชนิดพิเศษ") || !explainerText.includes("ดูหน้างานก่อน")) {
+    fail("Explainer missing big-slab site-visit paragraph");
+  } else pass("Explainer paraphrases the big-slab contractor note");
 
   await explainer.screenshot({ path: path.join(shots, "explainer.png") });
   await page.evaluate(() => {
@@ -308,6 +362,49 @@ async function main() {
     consoleErrors.forEach((e) => fail("console error after district flow: " + e));
   } else {
     pass("No console errors after district flow");
+  }
+
+  // Big-slab result: wide range, site-visit label, นัดดูหน้างาน CTA
+  await restart(page);
+  await fillScenario(page, {
+    area: 25,
+    tile: "120x240",
+    location: "hall_floor",
+    site: "house_ground",
+    distance: 8,
+  });
+  const visitLabel = page.locator("#siteVisitLabel");
+  if (await visitLabel.isVisible() && (await visitLabel.innerText()).includes("ต้องดูหน้างานก่อนเสนอราคา")) {
+    pass("Big-slab label visible: ต้องดูหน้างานก่อนเสนอราคา");
+  } else {
+    fail("Big-slab site-visit label missing or hidden");
+  }
+  const kicker = await page.locator("#priceKicker").innerText();
+  if (kicker.includes("ช่วงราคาคร่าว")) pass("Big-slab kicker is a wide-range note: " + kicker);
+  else fail("Big-slab kicker still looks like a precise quote: " + kicker);
+  const visitBtn = page.locator("#siteVisitBtn");
+  const visitText = await visitBtn.innerText();
+  const visitHref = await visitBtn.getAttribute("href") || "";
+  let visitDecoded = "";
+  try { visitDecoded = decodeURIComponent(visitHref); } catch (e) { visitDecoded = visitHref; }
+  if (await visitBtn.isVisible() && visitText.includes("นัดดูหน้างาน") && visitHref.includes("line.me") && visitDecoded.includes("นัดดูหน้างาน")) {
+    pass("Primary CTA นัดดูหน้างาน with prefilled LINE");
+  } else {
+    fail("Site-visit CTA missing or LINE not prefilled: " + visitText + " " + visitHref);
+  }
+  const slabReasons = await page.locator("#breakdown").innerText();
+  if (slabReasons.includes("ต้องใช้ช่าง 2 คนขึ้นไปและเครื่องมือยกพิเศษ")) pass("Reason: 2+ workers and special lifting tools");
+  else fail("Missing 2-worker / lifting-tool reason");
+  if (slabReasons.includes("ปูนกาวชนิดพิเศษ") && slabReasons.includes("มากกว่า 4 เท่า")) pass("Reason: special adhesive >4x");
+  else fail("Missing special-adhesive reason");
+  if (slabReasons.includes("การขนย้ายยาก")) pass("Reason: hard to move");
+  else fail("Missing hard-to-move reason");
+  await page.screenshot({ path: path.join(shots, "bigslab-result.png"), fullPage: true });
+  pass("Saved shots/bigslab-result.png");
+  if (consoleErrors.length) {
+    consoleErrors.forEach((e) => fail("console error after big-slab flow: " + e));
+  } else {
+    pass("No console errors after big-slab flow");
   }
 
   await browser.close();
